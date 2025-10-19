@@ -49,6 +49,10 @@ jobs:
     permissions:
       # REQUIRED: OIDC token for trusted publishing
       id-token: write
+      # REQUIRED: attestations feature needs to write to attestations
+      attestations: write
+      # REQUIRED: attestations feature needs to read repository contents
+      contents: read
 
     # Use dedicated environment with deployment protections
     environment:
