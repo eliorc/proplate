@@ -331,7 +331,7 @@ uv run pytest tests/test_template.py -v
 
 - Python >= 3.12
 - Dependencies:
-  - `typer[all]` - CLI framework
+  - `typer` - CLI framework
   - `questionary` - Interactive prompts
   - `pyperclip` - Clipboard operations
   - `pyyaml` - YAML parsing
