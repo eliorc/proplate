@@ -8,6 +8,7 @@ A CLI tool for managing and using prompt templates with placeholder injection. P
 - ⚡ **Direct template access** with tab autocomplete
 - 📋 **Auto-copy to clipboard** for seamless pasting
 - 🔧 **Placeholder support** with single-line and multi-line input
+- ✨ **Default values** for placeholders with `{{name:default}}` syntax
 - 📝 **YAML frontmatter** for template metadata
 - 🎨 **Rich CLI output** with beautiful formatting
 
@@ -192,11 +193,16 @@ description: Structured template for bug investigation
 ### Placeholder Guidelines
 
 - Use `{{placeholder}}` syntax
+- **Default values:** Use `{{placeholder:default value}}` to provide fallback values
+- **Escape colons:** Use `\:` to include literal colons in names or defaults (e.g., `{{url:https\://example.com}}`)
+- **Multi-line editor:** Type `-` to open `$EDITOR` for multi-line input (works with or without defaults)
 - **Placeholders can be descriptive instructions** (e.g., `{{Your request here. Be specific!}}`)
 - Support spaces, punctuation, and special characters
 - Duplicate placeholders are prompted once and replaced everywhere
 - Whitespace variations (`{{name}}`, `{{ name }}`) are normalized
-- Leave input empty to open multi-line editor (`$EDITOR`)
+- Leave input empty to:
+  - Use default value (if defined)
+  - Open multi-line editor (`$EDITOR`) (if no default)
 
 ## Examples
 
@@ -228,7 +234,39 @@ description: Comprehensive code review template
 {{feedback}}
 ```
 
-### Example 2: Refactoring Plan
+### Example 2: Feature Request (with Default Values)
+
+`~/.proplate/templates/feature-request.md`:
+```markdown
+---
+title: Feature Request
+description: Template for proposing new features with sensible defaults
+---
+
+# Feature Request: {{feature_name}}
+
+## Priority
+{{priority:Medium}}
+
+## Requested By
+{{requester:Product Team}}
+
+## Description
+{{description}}
+
+## Expected Benefits
+{{benefits}}
+
+## Implementation Complexity
+{{complexity:To be assessed}}
+
+## Target Release
+{{release:Next Quarter}}
+```
+
+**Usage:** When filling this template, press Enter on prompts with defaults to use them, or type to override.
+
+### Example 3: Refactoring Plan
 
 `~/.proplate/templates/refactor.md`:
 ```markdown
@@ -257,10 +295,17 @@ description: Template for planning refactoring work
 
 ## Tips
 
-1. **Multi-line Input**: Press Enter on an empty prompt to open your `$EDITOR` for multi-line content
-2. **Template Organization**: Use descriptive filenames (they become the template name)
-3. **Metadata**: Add `title` and `description` in frontmatter for better organization
-4. **Separators**: Use `---` freely in your template body (only the first block is frontmatter)
+1. **Default Values**: Use `{{placeholder:default}}` to provide sensible defaults that users can accept with Enter
+2. **Multi-line Editor Access**: 
+   - Type `-` to open `$EDITOR` for multi-line input (works even with defaults)
+   - Or press Enter on placeholders without defaults
+3. **Escaping Colons**: Use `\:` when you need literal colons in placeholder names or defaults:
+   - URLs: `{{api_url:https\://api.example.com}}`
+   - Times: `{{meeting_time:14\:30\:00}}`
+   - Labels: `{{Note\: Important:Remember this}}`
+4. **Template Organization**: Use descriptive filenames (they become the template name)
+5. **Metadata**: Add `title` and `description` in frontmatter for better organization
+6. **Separators**: Use `---` freely in your template body (only the first block is frontmatter)
 
 ## Development
 

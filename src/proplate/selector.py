@@ -54,23 +54,44 @@ def select_template(templates_dir: Path) -> Path | None:
     return template_map[selected]
 
 
-def prompt_for_value(placeholder: str) -> str:
+def prompt_for_value(placeholder: dict[str, str | None]) -> str:
     """
     Prompt user for a placeholder value.
-    Supports single-line input or multi-line editor.
+    Supports single-line input, default values, or multi-line editor.
+    Special trigger: Type '-' to open multi-line editor.
 
-    :param placeholder: Name of the placeholder
-    :return: User-provided value
+    :param placeholder: Dictionary with 'name', 'default', and 'raw' keys
+    :return: User-provided value or default value if available
     """
+    name = placeholder["name"]
+    default = placeholder.get("default")
+
+    # Build prompt message
+    if default is not None:
+        prompt_msg = f"→ {name} (default: {default}):"
+        instruction = "(Enter=default, '-'=editor, or type value)"
+    else:
+        prompt_msg = f"→ {name}:"
+        instruction = "(Enter=editor, '-'=editor, or type value)"
+
     # First, try simple text input
-    value = questionary.text(f"→ {placeholder}:",
-                             instruction="(Press Enter for multi-line editor, or type directly)").ask()
+    value = questionary.text(prompt_msg, instruction=instruction).ask()
 
     if value is None:  # User cancelled
-        return ""
+        return default if default is not None else ""
 
-    # If user pressed Enter on empty input, offer multi-line editor
+    # Check for multi-line editor trigger
+    if value == "-":
+        value = open_editor()
+        return value
+
+    # If user pressed Enter on empty input
     if value == "":
+        # If default exists, use it
+        if default is not None:
+            return default
+
+        # Otherwise, offer multi-line editor
         use_editor = questionary.confirm("Open multi-line editor?",
                                          default=True).ask()
 
@@ -78,7 +99,7 @@ def prompt_for_value(placeholder: str) -> str:
             value = open_editor()
         else:
             # Fallback to multi-line text input
-            console.print(f"[yellow]Enter value for {placeholder} (Ctrl+D or Ctrl+Z when done):[/yellow]")
+            console.print(f"[yellow]Enter value for {name} (Ctrl+D or Ctrl+Z when done):[/yellow]")
             lines = list()
             try:
                 while True:

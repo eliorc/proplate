@@ -111,7 +111,9 @@ def test_find_placeholders_single():
     text = "Hello {{name}}!"
     placeholders = find_placeholders(text)
 
-    assert placeholders == ["name"]
+    assert len(placeholders) == 1
+    assert placeholders[0]["name"] == "name"
+    assert placeholders[0]["default"] is None
 
 
 def test_find_placeholders_multiple():
@@ -120,7 +122,9 @@ def test_find_placeholders_multiple():
     placeholders = find_placeholders(text)
 
     # Should return unique values, preserving order of first appearance
-    assert placeholders == ["name", "item"]
+    assert len(placeholders) == 2
+    assert placeholders[0]["name"] == "name"
+    assert placeholders[1]["name"] == "item"
 
 
 def test_find_placeholders_none():
@@ -145,7 +149,10 @@ Remember: {{title}} is important!"""
 
     placeholders = find_placeholders(text)
 
-    assert placeholders == ["title", "context", "details"]
+    assert len(placeholders) == 3
+    assert placeholders[0]["name"] == "title"
+    assert placeholders[1]["name"] == "context"
+    assert placeholders[2]["name"] == "details"
 
 
 def test_find_placeholders_with_spaces_and_punctuation():
@@ -157,8 +164,8 @@ Additional context: {{Any relevant background information, constraints, or depen
     placeholders = find_placeholders(text)
 
     assert len(placeholders) == 2
-    assert placeholders[0] == "Your feature, refactoring, or change request here. Be specific about WHAT you want and WHY it is valuable."
-    assert placeholders[1] == "Any relevant background information, constraints, or dependencies"
+    assert placeholders[0]["name"] == "Your feature, refactoring, or change request here. Be specific about WHAT you want and WHY it is valuable."
+    assert placeholders[1]["name"] == "Any relevant background information, constraints, or dependencies"
 
 
 def test_find_placeholders_with_whitespace_variations():
@@ -170,7 +177,8 @@ def test_find_placeholders_with_whitespace_variations():
     placeholders = find_placeholders(text)
 
     # Should deduplicate to single 'name' after stripping
-    assert placeholders == ["name"]
+    assert len(placeholders) == 1
+    assert placeholders[0]["name"] == "name"
 
 
 def test_fill_placeholders_single():
@@ -260,7 +268,8 @@ Reviewed by: {{reviewer}}"""
 
     # Find placeholders
     placeholders = find_placeholders(parsed["body"])
-    assert set(placeholders) == {"file_path", "context", "focus_areas", "reviewer"}
+    placeholder_names = [p["name"] for p in placeholders]
+    assert set(placeholder_names) == {"file_path", "context", "focus_areas", "reviewer"}
 
     # Fill
     values = {
@@ -277,3 +286,298 @@ Reviewed by: {{reviewer}}"""
     assert "Alice" in result
     # Verify the --- separator in body is preserved
     assert "---" in result
+
+
+def test_find_placeholders_with_defaults():
+    """Test finding placeholders with default values."""
+    text = "Hello {{name:Guest}}! Your status: {{status:Active}}"
+    placeholders = find_placeholders(text)
+
+    assert len(placeholders) == 2
+    assert placeholders[0]["name"] == "name"
+    assert placeholders[0]["default"] == "Guest"
+    assert placeholders[0]["raw"] == "name:Guest"
+    assert placeholders[1]["name"] == "status"
+    assert placeholders[1]["default"] == "Active"
+
+
+def test_find_placeholders_without_defaults():
+    """Test finding placeholders without defaults (backward compatibility)."""
+    text = "Hello {{name}}! Your status: {{status}}"
+    placeholders = find_placeholders(text)
+
+    assert len(placeholders) == 2
+    assert placeholders[0]["name"] == "name"
+    assert placeholders[0]["default"] is None
+    assert placeholders[1]["name"] == "status"
+    assert placeholders[1]["default"] is None
+
+
+def test_find_placeholders_mixed():
+    """Test finding mix of placeholders with and without defaults."""
+    text = "{{title:Untitled}} by {{author}} - {{year:2024}}"
+    placeholders = find_placeholders(text)
+
+    assert len(placeholders) == 3
+    assert placeholders[0]["name"] == "title"
+    assert placeholders[0]["default"] == "Untitled"
+    assert placeholders[1]["name"] == "author"
+    assert placeholders[1]["default"] is None
+    assert placeholders[2]["name"] == "year"
+    assert placeholders[2]["default"] == "2024"
+
+
+def test_find_placeholders_empty_default():
+    """Test placeholder with empty default value."""
+    text = "{{name:}} - {{value: }}"
+    placeholders = find_placeholders(text)
+
+    assert len(placeholders) == 2
+    assert placeholders[0]["name"] == "name"
+    assert placeholders[0]["default"] == ""
+    assert placeholders[1]["name"] == "value"
+    assert placeholders[1]["default"] == ""
+
+
+def test_find_placeholders_default_with_colon():
+    """Test default value containing a colon."""
+    text = "{{url:https://example.com}} and {{time:12:30:00}}"
+    placeholders = find_placeholders(text)
+
+    assert len(placeholders) == 2
+    assert placeholders[0]["name"] == "url"
+    assert placeholders[0]["default"] == "https://example.com"
+    assert placeholders[1]["name"] == "time"
+    assert placeholders[1]["default"] == "12:30:00"
+
+
+def test_find_placeholders_default_with_spaces():
+    """Test default value with spaces and punctuation."""
+    text = "{{greeting:Hello, World!}} {{message:This is a default message.}}"
+    placeholders = find_placeholders(text)
+
+    assert len(placeholders) == 2
+    assert placeholders[0]["name"] == "greeting"
+    assert placeholders[0]["default"] == "Hello, World!"
+    assert placeholders[1]["name"] == "message"
+    assert placeholders[1]["default"] == "This is a default message."
+
+
+def test_find_placeholders_whitespace_normalization_with_defaults():
+    """Test whitespace normalization with default values."""
+    text = "{{ name : Guest }} and {{name:Guest}} and {{  name  :  Guest  }}"
+    placeholders = find_placeholders(text)
+
+    # Should deduplicate to single 'name' entry
+    assert len(placeholders) == 1
+    assert placeholders[0]["name"] == "name"
+    assert placeholders[0]["default"] == "Guest"
+
+
+def test_fill_placeholders_with_defaults_syntax():
+    """Test filling placeholders that have default syntax in template."""
+    text = "Hello {{name:Guest}}! Status: {{status:Active}}"
+    values = {"name": "Alice", "status": "Online"}
+    result = fill_placeholders(text, values)
+
+    assert result == "Hello Alice! Status: Online"
+
+
+def test_fill_placeholders_mixed_syntax():
+    """Test filling mix of placeholders with and without default syntax."""
+    text = "{{title:Untitled}} by {{author}} ({{year:2024}})"
+    values = {"title": "My Book", "author": "Bob", "year": "2023"}
+    result = fill_placeholders(text, values)
+
+    assert result == "My Book by Bob (2023)"
+
+
+def test_fill_placeholders_default_with_colon_in_value():
+    """Test filling placeholder where default contains colon."""
+    text = "URL: {{url:https://example.com}}"
+    values = {"url": "https://newsite.com:8080"}
+    result = fill_placeholders(text, values)
+
+    assert result == "URL: https://newsite.com:8080"
+
+
+def test_fill_placeholders_repeated_with_defaults():
+    """Test that repeated placeholders with defaults are all replaced."""
+    text = "{{greeting:Hi}} {{name:Guest}}! {{greeting:Hi}} again, {{name:Guest}}!"
+    values = {"greeting": "Hello", "name": "Alice"}
+    result = fill_placeholders(text, values)
+
+    assert result == "Hello Alice! Hello again, Alice!"
+
+
+def test_default_values_full_workflow():
+    """Test complete workflow with default values: parse, find, fill."""
+    template_content = """---
+title: Greeting Template
+description: Template with default values
+---
+
+# {{title:Welcome}}
+
+Hello {{name:Guest}}!
+
+Your message: {{message:No message provided}}
+
+Contact: {{email:}}"""
+
+    # Parse
+    parsed = parse_template(template_content)
+    assert parsed["metadata"]["title"] == "Greeting Template"
+
+    # Find placeholders
+    placeholders = find_placeholders(parsed["body"])
+    assert len(placeholders) == 4
+
+    placeholder_dict = {p["name"]: p for p in placeholders}
+    assert placeholder_dict["title"]["default"] == "Welcome"
+    assert placeholder_dict["name"]["default"] == "Guest"
+    assert placeholder_dict["message"]["default"] == "No message provided"
+    assert placeholder_dict["email"]["default"] == ""
+
+    # Fill with some values, leaving some to use defaults
+    values = {
+        "title": "Greetings",
+        "name": "Guest",  # Using default value explicitly
+        "message": "Hello from tests!",
+        "email": ""  # Using empty default
+    }
+    result = fill_placeholders(parsed["body"], values)
+
+    assert "# Greetings" in result
+    assert "Hello Guest!" in result
+    assert "Your message: Hello from tests!" in result
+    assert "Contact:" in result
+
+
+def test_find_placeholders_escaped_colon_in_name():
+    """Test placeholder with escaped colon in name (no default)."""
+    text = "{{What time\\: HH\\:MM}}"
+    placeholders = find_placeholders(text)
+
+    assert len(placeholders) == 1
+    assert placeholders[0]["name"] == "What time: HH:MM"
+    assert placeholders[0]["default"] is None
+
+
+def test_find_placeholders_escaped_colon_in_default():
+    """Test placeholder with escaped colon in default value."""
+    text = "{{url:https\\://example.com}}"
+    placeholders = find_placeholders(text)
+
+    assert len(placeholders) == 1
+    assert placeholders[0]["name"] == "url"
+    assert placeholders[0]["default"] == "https://example.com"
+
+
+def test_find_placeholders_escaped_colon_in_both():
+    """Test placeholder with escaped colons in both name and default."""
+    text = "{{API\\: endpoint:https\\://api.example.com/v1}}"
+    placeholders = find_placeholders(text)
+
+    assert len(placeholders) == 1
+    assert placeholders[0]["name"] == "API: endpoint"
+    assert placeholders[0]["default"] == "https://api.example.com/v1"
+
+
+def test_find_placeholders_multiple_escaped_colons():
+    """Test default value with multiple colons (time format)."""
+    text = "{{timestamp:12\\:30\\:45}}"
+    placeholders = find_placeholders(text)
+
+    assert len(placeholders) == 1
+    assert placeholders[0]["name"] == "timestamp"
+    assert placeholders[0]["default"] == "12:30:45"
+
+
+def test_find_placeholders_mixed_escaped_unescaped():
+    """Test mix of escaped colons (in name/default) and separator colon."""
+    text = "Meeting at {{time (HH\\:MM):14\\:30}} for {{topic:Project\\: Review}}"
+    placeholders = find_placeholders(text)
+
+    assert len(placeholders) == 2
+    assert placeholders[0]["name"] == "time (HH:MM)"
+    assert placeholders[0]["default"] == "14:30"
+    assert placeholders[1]["name"] == "topic"
+    assert placeholders[1]["default"] == "Project: Review"
+
+
+def test_fill_placeholders_escaped_colon_in_name():
+    """Test filling placeholder with escaped colon in name."""
+    text = "Time format: {{HH\\:MM\\:SS}}"
+    values = {"HH:MM:SS": "14:30:45"}
+    result = fill_placeholders(text, values)
+
+    assert result == "Time format: 14:30:45"
+
+
+def test_fill_placeholders_escaped_colon_in_template():
+    """Test filling placeholder with escaped colon in template default."""
+    text = "URL: {{url:https\\://example.com}}"
+    values = {"url": "https://newsite.com"}
+    result = fill_placeholders(text, values)
+
+    assert result == "URL: https://newsite.com"
+
+
+def test_fill_placeholders_preserve_escaped_colons_unfilled():
+    """Test that escaped colons are preserved if placeholder not filled."""
+    text = "Time: {{time\\: HH\\:MM:12\\:00}}"
+    values = {}  # Not providing value
+    result = fill_placeholders(text, values)
+
+    # Should preserve original escaped syntax since not replaced
+    assert "{{time\\: HH\\:MM:12\\:00}}" in result
+
+
+def test_escaped_colons_full_workflow():
+    """Test complete workflow with escaped colons: parse, find, fill."""
+    template_content = """---
+title: API Configuration
+description: Template with URLs and colons
+---
+
+# API Endpoint: {{endpoint}}
+
+**Base URL:** {{base_url:https\\://api.example.com}}
+**Timeout:** {{timeout:30\\:00 (mm\\:ss)}}
+**Notes:** {{notes:Connection via HTTPS\\: protocol}}"""
+
+    # Parse
+    parsed = parse_template(template_content)
+    assert parsed["metadata"]["title"] == "API Configuration"
+
+    # Find placeholders
+    placeholders = find_placeholders(parsed["body"])
+    assert len(placeholders) == 4
+
+    placeholder_dict = {p["name"]: p for p in placeholders}
+    assert "endpoint" in placeholder_dict
+    assert placeholder_dict["endpoint"]["default"] is None
+
+    assert "base_url" in placeholder_dict
+    assert placeholder_dict["base_url"]["default"] == "https://api.example.com"
+
+    assert "timeout" in placeholder_dict
+    assert placeholder_dict["timeout"]["default"] == "30:00 (mm:ss)"
+
+    assert "notes" in placeholder_dict
+    assert placeholder_dict["notes"]["default"] == "Connection via HTTPS: protocol"
+
+    # Fill
+    values = {
+        "endpoint": "/api/v1/users",
+        "base_url": "https://api.example.com",  # Using default
+        "timeout": "60:00 (mm:ss)",  # Override
+        "notes": "Secure connection"
+    }
+    result = fill_placeholders(parsed["body"], values)
+
+    assert "API Endpoint: /api/v1/users" in result
+    assert "https://api.example.com" in result
+    assert "60:00 (mm:ss)" in result
+    assert "Secure connection" in result

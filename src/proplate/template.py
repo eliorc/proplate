@@ -32,13 +32,15 @@ def parse_template(content: str) -> dict[str, dict | str]:
     return {"metadata": dict(), "body": content}
 
 
-def find_placeholders(text: str) -> list[str]:
+def find_placeholders(text: str) -> list[dict[str, str | None]]:
     """
-    Find all unique {{placeholder}} patterns in text.
+    Find all unique {{placeholder}} or {{placeholder:default}} patterns in text.
     Supports descriptive placeholders with spaces, punctuation, etc.
+    Supports default values using colon separator syntax.
+    Supports escaping colons with backslash (\\:) for literal colons.
 
     :param text: Template text to search
-    :return: List of unique placeholder names
+    :return: List of unique placeholder dictionaries with 'name', 'default', and 'raw' keys
     """
     # Find all {{...}} patterns, allowing any content except closing braces
     # This supports descriptive placeholders like {{Your request here}}
@@ -46,27 +48,64 @@ def find_placeholders(text: str) -> list[str]:
     # Return unique values while preserving order (strip whitespace for consistency)
     seen = set()
     result = list()
+
+    # Placeholder token for escaped colons (unlikely to appear in user text)
+    ESCAPED_COLON = "\x00ESCAPED_COLON\x00"
+
     for match in matches:
-        cleaned = match.strip()
-        if cleaned and cleaned not in seen:
-            seen.add(cleaned)
-            result.append(cleaned)
+        # Parse placeholder:default syntax with escape handling
+        raw = match.strip()
+        if not raw:
+            continue
+
+        # Temporarily replace escaped colons to protect them from splitting
+        escaped = raw.replace("\\:", ESCAPED_COLON)
+
+        # Split on first unescaped colon to separate name from default
+        if ":" in escaped:
+            parts = escaped.split(":", 1)
+            name = parts[0].strip().replace(ESCAPED_COLON, ":")
+            default = parts[1].strip().replace(ESCAPED_COLON, ":") if len(parts) > 1 else ""
+        else:
+            name = escaped.strip().replace(ESCAPED_COLON, ":")
+            default = None
+
+        # Deduplicate by name only
+        if name not in seen:
+            seen.add(name)
+            result.append({"name": name, "default": default, "raw": raw})
+
     return result
 
 
 def fill_placeholders(text: str, values: dict[str, str]) -> str:
     """
-    Replace all {{key}} with values[key].
+    Replace all {{key}} or {{key:default}} with values[key].
     Handles placeholders with varying whitespace (e.g., {{key}}, {{ key }}).
+    Extracts placeholder name from default value syntax if present.
+    Handles escaped colons (\\:) in placeholder names.
 
     :param text: Template text with placeholders
     :param values: Dictionary mapping placeholder names to their values
     :return: Text with all placeholders replaced
     """
-    # Use regex to find and replace, handling whitespace variations
+    # Placeholder token for escaped colons
+    ESCAPED_COLON = "\x00ESCAPED_COLON\x00"
+
+    # Use regex to find and replace, handling whitespace variations and defaults
     def replace_func(match):
-        placeholder = match.group(1).strip()
-        return values.get(placeholder, match.group(0))
+        raw = match.group(1).strip()
+
+        # Temporarily replace escaped colons
+        escaped = raw.replace("\\:", ESCAPED_COLON)
+
+        # Extract placeholder name (before unescaped colon if default syntax used)
+        if ":" in escaped:
+            name = escaped.split(":", 1)[0].strip().replace(ESCAPED_COLON, ":")
+        else:
+            name = escaped.strip().replace(ESCAPED_COLON, ":")
+
+        return values.get(name, match.group(0))
 
     return re.sub(r"\{\{([^}]+)\}\}", replace_func, text)
 

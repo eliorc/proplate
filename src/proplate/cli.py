@@ -10,6 +10,7 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 
+from proplate import __version__
 from proplate.clipboard import copy_to_clipboard
 from proplate.selector import prompt_for_value, select_template
 from proplate.template import fill_placeholders, find_placeholders, get_template_info, parse_template
@@ -17,6 +18,36 @@ from proplate.template import fill_placeholders, find_placeholders, get_template
 
 app = typer.Typer(help="Inject prompt templates with filled placeholders to clipboard")
 console = Console()
+
+
+def version_callback(value: bool) -> None:
+    """
+    Print version and exit if --version flag is provided.
+
+    :param value: Boolean indicating if version flag was provided
+    """
+    if value:
+        console.print(f"proplate version {__version__}")
+        raise typer.Exit()
+
+
+@app.callback(invoke_without_command=True)
+def main_callback(
+    version: bool = typer.Option(
+        False,
+        "--version",
+        "-v",
+        callback=version_callback,
+        is_eager=True,
+        help="Show version and exit"
+    )
+) -> None:
+    """
+    Global callback to handle --version flag.
+
+    :param version: Flag to show version
+    """
+    pass
 
 
 def get_templates_dir() -> Path:
@@ -89,7 +120,7 @@ def process_template(template_path: Path) -> None:
     values = dict()
     for placeholder in placeholders:
         value = prompt_for_value(placeholder)
-        values[placeholder] = value
+        values[placeholder["name"]] = value
 
     # Fill placeholders
     filled = fill_placeholders(template_body, values)
@@ -322,6 +353,7 @@ def cli_wrapper() -> None:
                 "--help",
                 "-h",
                 "--version",
+                "-v",
                 "--install-completion",
                 "--show-completion"}
 
