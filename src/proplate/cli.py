@@ -5,7 +5,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import questionary
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -296,6 +295,14 @@ def delete(
 
     # Show confirmation unless --force is used
     if not force:
+        # Check for interactive terminal before importing questionary
+        # (questionary/prompt_toolkit fails in non-TTY environments)
+        if not sys.stdin.isatty():
+            console.print("✗ Confirmation requires a terminal. Use --force to skip confirmation.", style="bold red")
+            raise typer.Exit(1)
+
+        import questionary
+
         confirm = questionary.confirm(f"Delete template '{template_name}'?", default=False).ask()
 
         if not confirm:

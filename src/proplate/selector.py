@@ -5,7 +5,6 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-import questionary
 from rich.console import Console
 
 from proplate.template import get_template_info
@@ -20,6 +19,16 @@ def select_template(templates_dir: Path) -> Path | None:
     :param templates_dir: Directory containing template files
     :return: Selected template path, or None if cancelled
     """
+    import sys
+
+    # Ensure we're in an interactive terminal before importing questionary
+    # (questionary/prompt_toolkit fails in non-TTY environments)
+    if not sys.stdin.isatty():
+        console.print("✗ Interactive mode requires a terminal", style="bold red")
+        return None
+
+    import questionary
+
     template_files = sorted(templates_dir.glob("*.md"))
 
     if not template_files:
@@ -63,6 +72,16 @@ def prompt_for_value(placeholder: dict[str, str | None]) -> str:
     :param placeholder: Dictionary with 'name', 'default', and 'raw' keys
     :return: User-provided value or default value if available
     """
+    import sys
+
+    # Ensure we're in an interactive terminal before importing questionary
+    # (questionary/prompt_toolkit fails in non-TTY environments)
+    if not sys.stdin.isatty():
+        console.print("✗ Interactive input requires a terminal", style="bold red")
+        return placeholder.get("default", "")
+
+    import questionary
+
     name = placeholder["name"]
     default = placeholder.get("default")
 
