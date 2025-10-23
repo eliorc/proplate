@@ -350,19 +350,70 @@ def cli_wrapper() -> None:
     Custom CLI wrapper to handle default command behavior.
     If no recognized command is provided, treat first arg as template name.
     """
-    # List of recognized commands
-    commands = {"list",
-                "new",
-                "edit",
-                "delete",
-                "init",
-                "path",
-                "--help",
-                "-h",
-                "--version",
-                "-v",
-                "--install-completion",
-                "--show-completion"}
+    # Check if we're in shell completion mode
+    # Typer uses environment variables like _PROPLATE_COMPLETE=complete_zsh
+    completion_env_vars = [
+        "_PROPLATE_COMPLETE",
+        "_PROPLATE_COMPLETE_ZSH",
+        "_PROPLATE_COMPLETE_BASH",
+        "_PROPLATE_COMPLETE_FISH"
+    ]
+    if any(os.environ.get(var) for var in completion_env_vars):
+        # In completion mode - need to provide completions
+        # Parse the completion args to figure out what to complete
+        complete_args = os.environ.get("_TYPER_COMPLETE_ARGS", "").split()
+
+        # Check if we're completing the first argument (after 'proplate ')
+        # complete_args will be like: ['proplate'] or ['proplate', 'l'] or ['proplate', 'list']
+        if len(complete_args) >= 1:
+            # Get the incomplete word being typed (last arg if exists, else empty)
+            incomplete = complete_args[-1] if len(complete_args) > 1 else ""
+
+            # If we only have 'proplate' or 'proplate <incomplete>', we're at the first arg
+            # Check if we're not in a subcommand (like 'proplate edit <something>')
+            if len(complete_args) <= 2 and not incomplete.startswith("-"):
+                # Dynamically extract command names from registered commands
+                commands = [
+                    cmd.name if cmd.name else cmd.callback.__name__
+                    for cmd in app.registered_commands
+                    if cmd.callback
+                ]
+
+                # Provide both command and template completions
+                all_completions = commands + template_name_autocomplete(incomplete)
+
+                # Filter to only matches that start with the incomplete string
+                matches = [c for c in all_completions if c.startswith(incomplete)]
+
+                # Output in zsh completion format that can be eval'd
+                # The completion script uses: eval $(proplate ...)
+                # So we need to output a zsh completion command, not just plain text
+                if matches:
+                    # Format as: _arguments '*: :((value1 value2 value3))'
+                    # Escape any special characters for zsh
+                    escaped_matches = [m.replace("'", "'\\''").replace('"', '\\"') for m in matches]
+                    completion_items = " ".join(f'"{m}"' for m in escaped_matches)
+                    print(f"_arguments '*: :(({completion_items}))'")
+                return
+
+        # Fall back to normal Typer completion for other cases (subcommands, options, etc.)
+        app()
+        return
+
+    # Build set of recognized commands and options dynamically
+    # Extract command names from registered commands
+    command_names = {
+        cmd.name if cmd.name else cmd.callback.__name__
+        for cmd in app.registered_commands
+        if cmd.callback
+    }
+    # Add global options/flags
+    commands = command_names | {
+        "--help", "-h",
+        "--version", "-v",
+        "--install-completion",
+        "--show-completion"
+    }
 
     try:
         # Check if we have args and if first arg is not a command
