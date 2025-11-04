@@ -7,7 +7,9 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.table import Table
 
 from proplate import __version__
 from proplate.clipboard import copy_to_clipboard
@@ -343,6 +345,80 @@ def path() -> None:
     """Print the templates directory path."""
     templates_dir = get_templates_dir()
     console.print(str(templates_dir))
+
+
+@app.command()
+def show(template_name: str = typer.Argument(...,
+                                             autocompletion=template_name_autocomplete,
+                                             help="Template name to display")) -> None:
+    """Display template contents with beautiful formatting."""
+    templates_dir = get_templates_dir()
+
+    # Auto-create templates directory if it doesn't exist
+    if not templates_dir.exists():
+        templates_dir.mkdir(parents=True, exist_ok=True)
+
+    template_path = templates_dir / f"{template_name}.md"
+
+    if not template_path.exists():
+        console.print(f"✗ Template '{template_name}' not found", style="bold red")
+        console.print("→ Use 'proplate list' to see available templates", style="yellow")
+        raise typer.Exit(1)
+
+    # Read and parse template
+    content = template_path.read_text()
+    parsed = parse_template(content)
+    metadata = parsed["metadata"]
+    body = parsed["body"]
+
+    # Display header
+    console.print()
+    title = metadata.get("title", template_name)
+    console.print(Panel(f"[bold cyan]{title}[/bold cyan]", expand=False))
+
+    # Display metadata if present
+    if metadata:
+        console.print()
+        console.print("[bold]Metadata:[/bold]")
+        metadata_table = Table(show_header=False, box=None, padding=(0, 2))
+        metadata_table.add_column("Key", style="cyan")
+        metadata_table.add_column("Value", style="white")
+
+        for key, value in metadata.items():
+            metadata_table.add_row(key, str(value))
+
+        console.print(metadata_table)
+
+    # Find and display placeholders
+    placeholders = find_placeholders(body)
+    if placeholders:
+        console.print()
+        console.print("[bold]Placeholders:[/bold]")
+        placeholder_table = Table(show_header=True, box=None, padding=(0, 2))
+        placeholder_table.add_column("Name", style="yellow")
+        placeholder_table.add_column("Default Value", style="dim")
+
+        for placeholder in placeholders:
+            name = placeholder["name"]
+            default = placeholder.get("default")
+            default_display = default if default else "[dim]none[/dim]"
+            placeholder_table.add_row(name, default_display)
+
+        console.print(placeholder_table)
+
+    # Display template body
+    console.print()
+    console.print("[bold]Template Content:[/bold]")
+    console.print()
+
+    # Render as markdown for beautiful display
+    md = Markdown(body)
+    console.print(Panel(md, expand=False, border_style="dim"))
+
+    # Display raw template path
+    console.print()
+    console.print(f"[dim]Template path: {template_path}[/dim]")
+    console.print()
 
 
 def cli_wrapper() -> None:

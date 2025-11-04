@@ -102,6 +102,9 @@ proplate new <template-name>
 # List all available templates
 proplate list
 
+# Show template contents with beautiful formatting
+proplate show <template-name>
+
 # Edit an existing template in $EDITOR
 proplate edit <template-name>
 
@@ -125,6 +128,16 @@ proplate init
 proplate new my-template
 ```
 Creates a template with starter content and opens it in your `$EDITOR`.
+
+**View template contents:**
+```bash
+proplate show my-template
+```
+Display template with beautiful formatting including:
+- Template metadata (title, description)
+- List of placeholders with default values
+- Rendered markdown content
+- Template file path
 
 **Edit existing template:**
 ```bash
